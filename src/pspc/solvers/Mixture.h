@@ -14,6 +14,7 @@
 #include <pscf/inter/Interaction.h>
 #include <util/containers/DArray.h>
 #include <util/containers/FArray.h>
+#include <util/misc/Timer.h>
 
 namespace Pscf { 
    template <int D> class Mesh; 
@@ -184,10 +185,15 @@ namespace Pspc
 
       /// Return associated domain by reference.
       Mesh<D> const & mesh() const;
-
+      
+      Timer cumTimer;
+      Timer polTimer;
+      Timer clearTimer;
+      Timer::TimePoint now;
    };
 
    // Inline member function
+
 
    // Get monomer reference volume (public).
    template <int D>

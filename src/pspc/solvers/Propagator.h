@@ -103,6 +103,14 @@ namespace Pspc
       * \param head initial condition of QField at head of block
       */
       void solve(QField const & head);
+
+      /**
+      *  Solve the MDE without calculating initial condition
+      *  Head of propagator already initialized using 
+      *  bottlebrush override getter
+      *  Should only be use for the fast bottlebrush code 
+      */
+      void solveFree();
  
       /**
       * Compute and return partition function for the molecule.
@@ -131,6 +139,12 @@ namespace Pspc
       */
       const QField& tail() const;
 
+      //override for bottle brush calculations
+      QField& tailFree();
+
+      QField& headFree();
+
+      int meshSize();
       /**
       * Get the associated Block object by reference.
       */
@@ -150,12 +164,13 @@ namespace Pspc
       using PropagatorTmpl< Propagator<D> >::isSolved;
       using PropagatorTmpl< Propagator<D> >::hasPartner;
 
-   protected:
-
       /**
       * Compute initial QField at head from tail QFields of sources.
       */
       void computeHead();
+
+   protected:
+
 
    private:
      
@@ -197,6 +212,21 @@ namespace Pspc
    typename Propagator<D>::QField const& Propagator<D>::tail() const
    {  return qFields_[ns_-1]; }
 
+   template <int D>
+   inline 
+   typename Propagator<D>::QField & Propagator<D>::tailFree()
+   {  return qFields_[ns_-1]; }
+
+   template <int D>
+   inline 
+   typename Propagator<D>::QField & Propagator<D>::headFree()
+   {  return qFields_[0]; }
+
+   template <int D>
+   inline 
+   int Propagator<D>::meshSize()
+   {  return meshPtr_->size(); }
+   
    /*
    * Return q-field at specified step.
    */

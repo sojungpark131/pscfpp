@@ -63,6 +63,10 @@ namespace Pspc
       */
       RField& operator = (const RField& other);
 
+      RField& operator+= (const RField& other);
+      
+      RField& operator*= (const RField& other);
+
       using Field<double>::allocate;
 
       /**
@@ -87,7 +91,11 @@ namespace Pspc
       */
       template <class Archive>
       void serialize(Archive& ar, const unsigned int version);
-
+      
+      friend RField operator*(RField lhs, const RField& rhs){
+         lhs *= rhs;
+         return lhs;
+      }
    private:
 
       // Vector containing number of grid points in each direction.

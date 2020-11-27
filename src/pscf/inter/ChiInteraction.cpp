@@ -49,12 +49,13 @@ namespace Pscf {
          chiInverse_(0,0) = chi_(1,1)/det;
 
       } else {
-         LuSolver solver;
-         solver.allocate(nMonomer());
-         solver.computeLU(chi_);
-         solver.inverse(chiInverse_);
+         //LuSolver solver;
+         //solver.allocate(nMonomer());
+         //solver.computeLU(chi_);
+         //solver.inverse(chiInverse_);
       }
 
+      /*
       double sum = 0;
       int i, j, k;
 
@@ -77,7 +78,7 @@ namespace Pscf {
       }
       
       sum_inv_ = sum;
-
+      */
    }
 
    /*

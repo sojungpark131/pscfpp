@@ -88,21 +88,27 @@ namespace Pspc {
       }   
 
       // Allocate work arrays
-      expKsq_.allocate(kMeshDimensions_);
-      expW_.allocate(mesh.dimensions());
-      expKsq2_.allocate(kMeshDimensions_);
-      expW2_.allocate(mesh.dimensions());
-      qr_.allocate(mesh.dimensions());
-      qk_.allocate(mesh.dimensions());
-      qr2_.allocate(mesh.dimensions());
-      qk2_.allocate(mesh.dimensions());
-      qf_.allocate(mesh.dimensions());
-
-      dGsq_.allocate(kSize_, 6);
-
-      propagator(0).allocate(ns_, mesh);
-      propagator(1).allocate(ns_, mesh);
-      cField().allocate(mesh.dimensions());
+      if(necessary) {
+         expKsq_.allocate(kMeshDimensions_);
+         expW_.allocate(mesh.dimensions());
+         expKsq2_.allocate(kMeshDimensions_);
+         expW2_.allocate(mesh.dimensions());
+         qr_.allocate(mesh.dimensions());
+         qk_.allocate(mesh.dimensions());
+         qr2_.allocate(mesh.dimensions());
+         qk2_.allocate(mesh.dimensions());
+         qf_.allocate(mesh.dimensions());
+         
+         dGsq_.allocate(kSize_, 6);
+         
+         propagator(0).allocate(ns_, mesh);
+         propagator(1).allocate(ns_, mesh);
+         cField().allocate(mesh.dimensions());
+      } else {
+         propagator(0).allocate(1, mesh);
+         propagator(1).allocate(1, mesh);
+         dGsq_.allocate(kSize_, 6);
+      }
 
    }
 
@@ -114,28 +120,30 @@ namespace Pspc {
    Block<D>::setupUnitCell(const UnitCell<D>& unitCell)
    {
 
-      // Set association to unitCell
-      unitCellPtr_ = &unitCell;
+      if(necessary) {
+         // Set association to unitCell
+         unitCellPtr_ = &unitCell;
 
-      MeshIterator<D> iter;
-      // std::cout << "kDimensions = " << kMeshDimensions_ << std::endl;
-      iter.setDimensions(kMeshDimensions_);
-      IntVec<D> G, Gmin;
-      double Gsq;
-      double factor = -1.0*kuhn()*kuhn()*ds_/6.0;
-      // std::cout << "factor      = " << factor << std::endl;
-      int i;
-      for (iter.begin(); !iter.atEnd(); ++iter) {
-         i = iter.rank(); 
-         G = iter.position();
-         Gmin = shiftToMinimum(G, mesh().dimensions(), unitCell);
-         Gsq = unitCell.ksq(Gmin);
-         expKsq_[i] = exp(Gsq*factor);
-         expKsq2_[i] = exp(Gsq*factor*0.5);
-         //std::cout << i    << "  " 
-         //         << Gmin << "  " 
-         //          << Gsq  << "  "
-         //          << expKsq_[i] << std::endl;
+         MeshIterator<D> iter;
+         // std::cout << "kDimensions = " << kMeshDimensions_ << std::endl;
+         iter.setDimensions(kMeshDimensions_);
+         IntVec<D> G, Gmin;
+         double Gsq;
+         double factor = -1.0*kuhn()*kuhn()*ds_/6.0;
+         // std::cout << "factor      = " << factor << std::endl;
+         int i;
+         for (iter.begin(); !iter.atEnd(); ++iter) {
+            i = iter.rank(); 
+            G = iter.position();
+            Gmin = shiftToMinimum(G, mesh().dimensions(), unitCell);
+            Gsq = unitCell.ksq(Gmin);
+            expKsq_[i] = exp(Gsq*factor);
+            expKsq2_[i] = exp(Gsq*factor*0.5);
+            //std::cout << i    << "  " 
+            //         << Gmin << "  " 
+            //          << Gsq  << "  "
+            //          << expKsq_[i] << std::endl;
+         }
       }
 
    }
@@ -235,6 +243,7 @@ namespace Pspc {
       for (i = 0; i < nx; ++i) {
          cField()[i] *= prefactor;
       }
+      //std::cout<<"cField()[0] = "<<cField()[0]<<std::endl;
 
    }
 
@@ -404,6 +413,11 @@ namespace Pspc {
       for (i = 0; i < nx; ++i) {
          qNew[i] = (4.0*qr2_[i] - qf_[i])/3.0;
       }
+      
+      //for(int i = 0; i < 3; ++i) {
+      //   std::cout<<qNew[i]<<' ';
+      // }
+      //std::cout<<std::endl;
    }
 
 }

@@ -67,15 +67,18 @@ namespace Pspc {
       }
 
       // Pointwise multiply tail QFields of all sources
+      //std::cout<<"nsource "<<nSource()<<std::endl;
       for (int is = 0; is < nSource(); ++is) {
          if (!source(is).isSolved()) {
             UTIL_THROW("Source not solved in computeHead");
          }
          QField const& qt = source(is).tail();
+         //std::cout<<"qt[0] " <<qt[0]<<std::endl;
          for (ix = 0; ix < nx; ++ix) {
             qh[ix] *= qt[ix];
          }
       }
+      //std::cout<<"qh[0] " <<qh[0]<<std::endl;
    }
 
    /*
@@ -114,6 +117,17 @@ namespace Pspc {
       setIsSolved(true);
    }
 
+   template <int D>
+   void Propagator<D>::solveFree()
+   {
+      UTIL_CHECK(isAllocated());
+      // Setup solver and solve
+      for (int iStep = 0; iStep < ns_ - 1; ++iStep) {
+         block().step(qFields_[iStep], qFields_[iStep + 1]);
+      }
+      setIsSolved(true);
+   }
+
    /*
    * Integrate to calculate monomer concentration for this block
    */
@@ -137,6 +151,7 @@ namespace Pspc {
       UTIL_CHECK(qh.capacity() == nx);
 
       // Take inner product of head and partner tail fields
+      // std::cout<<"This is q "<<qh[0]<<' '<<qt[0]<<std::endl;
       double Q = 0;
       for (int i =0; i < nx; ++i) {
          Q += qh[i]*qt[i];

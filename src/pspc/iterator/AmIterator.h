@@ -134,6 +134,7 @@ namespace Pspc
       RingBuffer< DArray < DArray<double> > > devHists_;
 
       RingBuffer< DArray < DArray<double> > > omHists_;
+      //RingBuffer< DArray < WField > > omHists_;
 
       /// History of deviation for each cell parameter
       /// 1st index = history, 2nd index = cell parameter
@@ -155,6 +156,9 @@ namespace Pspc
 
       /// bigD, blened deviation fields. new wFields = bigW + lambda * bigD
       DArray<DArray <double> > dArrays_;
+
+      DArray<double> lagrangian_;
+      DArray<double> lWorkspace_;
 
       /// bigWcP, blended parameter
       FArray <double, 6> wCpArrays_;

@@ -176,6 +176,7 @@ namespace Pspc {
       using BlockDescriptor::vertexId;
       using BlockDescriptor::length;
 
+      bool necessary = false;
    private:
 
       /// Matrix to store derivatives of plane waves 

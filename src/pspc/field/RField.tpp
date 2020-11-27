@@ -90,6 +90,24 @@ namespace Pspc
       return *this;
    }
 
+   template <int D>
+   RField<D>& RField<D>::operator+= (const RField<D>& other)
+   {
+      for (int i = 0; i < capacity_; ++i) {
+         data_[i] += other[i];
+      }
+      return *this;
+   }
+
+   template <int D>
+   RField<D>& RField<D>::operator*= (const RField<D>& other)
+   {
+      for (int i = 0; i < capacity_; ++i) {
+         data_[i] *= other[i];
+      }
+      return *this;
+   }
+
    /*
    * Allocate the underlying C array for an FFT grid.
    */

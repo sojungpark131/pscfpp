@@ -12,6 +12,7 @@
 #include <pscf/solvers/PolymerTmpl.h>
 #include <pspc/field/RField.h>
 #include <util/containers/FArray.h>      // member template
+#include <util/misc/Timer.h>
 
 namespace Pscf { 
 namespace Pspc { 
@@ -118,7 +119,9 @@ namespace Pspc {
 
       // Inherited functions
 
+      using Base::vertex;
       using Base::nBlock;
+      using Base::minPropgCount;
       using Base::block;
       using Base::ensemble;
       using Base::solve;
@@ -135,6 +138,12 @@ namespace Pspc {
 
       /// Stress contribution from this polymer species
       FArray<double, 6> stress_;
+
+      Timer propagatorTimer;
+      Timer propTrueTimer;
+      Timer setupTimer;
+      Timer rhoTimer;
+      Timer::TimePoint now;
 
       using Base::phi_;
       using Base::mu_;

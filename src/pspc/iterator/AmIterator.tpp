@@ -75,10 +75,12 @@ namespace Pspc
 
       int nStar = systemPtr_->basis().nStar();
       for (int i = 0; i < nMonomer; ++i) {
-         wArrays_[i].allocate(nStar - 1);
-         dArrays_[i].allocate(nStar - 1);
-         tempDev[i].allocate(nStar - 1);
+         wArrays_[i].allocate(nStar);
+         dArrays_[i].allocate(nStar);
+         tempDev[i].allocate(nStar);
       }
+      lagrangian_.allocate(nStar);
+      lWorkspace_.allocate(nStar);
    }
 
    /*
@@ -102,19 +104,23 @@ namespace Pspc
 
       FieldIo<D>& fieldIo = system().fieldIo();
 
-      #if 0
-      // Convert from Basis to RGrid
-      convertTimer.start();
-      fieldIo.convertBasisToRGrid(system().wFields(),
-                                  system().wFieldsRGrid());
-      now = Timer::now();
-      convertTimer.stop(now);
-      #endif
-
+      //upon input wFields are converted to wFieldsGrid automatically
       // Solve MDE for initial state
-      solverTimer.start();
+      //std::cout<<"dump : "<<system().wFieldRGrid(1)[0]<<std::endl;
+      //std::cout<<"dump : "<<system().wFieldRGrid(2)[0]<<std::endl;
+      //std::cout<<"dump : "<<system().wFieldRGrid(0)[0]<<std::endl;
+
+      
+      //solverTimer.start();
+      now = Timer::now();
+      solverTimer.start(now);
+
       system().mixture().compute(system().wFieldsRGrid(),
                                     system().cFieldsRGrid());
+      //std::cout<<"cdump : "<<system().cFieldRGrid(1)[0]<<std::endl;
+      //std::cout<<"cdump : "<<system().cFieldRGrid(2)[0]<<std::endl;
+      //std::cout<<"cdump : "<<system().cFieldRGrid(0)[0]<<std::endl;
+
       now = Timer::now();
       solverTimer.stop(now);
 
@@ -184,6 +190,8 @@ namespace Pspc
 
             // If the unit cell is rigid, compute and output final stress 
             if (!isFlexible_) {
+               //bottlebrush does not implement stress yet with the reduced memory space
+               //Log::file() << "Stress not implemented for bottlebrush \n";
                system().mixture().computeStress();
                Log::file() << "Final stress:" << "\n";
                for (int m=0; m<(systemPtr_->unitCell()).nParameter(); ++m){
@@ -267,46 +275,47 @@ namespace Pspc
          CpHists_.append((systemPtr_->unitCell()).parameters());
 
       for (int i = 0 ; i < systemPtr_->mixture().nMonomer(); ++i) {
-         for (int j = 0; j < systemPtr_->basis().nStar() - 1; ++j) {
+         for (int j = 0; j < systemPtr_->basis().nStar(); ++j) {
             tempDev[i][j] = 0;
          }
       }
 
-      DArray<double> temp;
-      temp.allocate(systemPtr_->basis().nStar() - 1);
-
-      #if 0
-      for (int i = 0; i < systemPtr_->mixture().nMonomer(); ++i) {
-
-         for (int j = 0; j < systemPtr_->basis().nStar() - 1; ++j) {
-            temp[j] = 0;
-         }
-
-         for (int j = 0; j < systemPtr_->mixture().nMonomer(); ++j) {
-            for (int k = 0; k < systemPtr_->basis().nStar() - 1; ++k) {
-               tempDev[i][k] += systemPtr_->interaction().chi(i,j) *
-                              systemPtr_->cField(j)[k + 1];
-               temp[k] += systemPtr_->wField(j)[k + 1];
-            }
-         }
-
-         for (int k = 0; k < systemPtr_->basis().nStar() - 1; ++k) {
-            tempDev[i][k] += ((temp[k] / systemPtr_->mixture().nMonomer())
-                             - systemPtr_->wField(i)[k + 1]);
-         }
+      //lagragian
+      for(int k = 0; k < systemPtr_->basis().nStar(); ++k) {
+         lagrangian_[k] = 0;
+         lWorkspace_[k] = 0;
       }
-      #endif
 
       for (int i = 0; i < systemPtr_->mixture().nMonomer(); ++i) {
-
          for (int j = 0; j < systemPtr_->mixture().nMonomer(); ++j) {
-            for (int k = 0; k < systemPtr_->basis().nStar() - 1; ++k) {
-               tempDev[i][k] +=( (systemPtr_->interaction().chi(i,j)*systemPtr_->cField(j)[k + 1])
-                               - (systemPtr_->interaction().idemp(i,j)*systemPtr_->wField(j)[k + 1]) );
+            for(int k = 0; k < systemPtr_->basis().nStar(); ++k) {
+               tempDev[i][k] += systemPtr_->interaction().chi(i,j) * systemPtr_->cField(j)[k];
             }
          }
       }
 
+      for (int j = 0; j < systemPtr_->mixture().nMonomer(); ++j) {
+         for(int k = 0; k < systemPtr_->basis().nStar(); ++k) {
+            lagrangian_[k] += systemPtr_->wField(j)[k];
+         }
+      }         
+      
+      for(int k = 0; k < systemPtr_->basis().nStar(); ++k) {
+         if(k == 0) {
+            lagrangian_[k] -= systemPtr_->interaction().chi(1,2) * (1 - systemPtr_->cField(0)[k]);
+            lagrangian_[k] /= systemPtr_->mixture().nMonomer();
+         } else {
+            lagrangian_[k] -= systemPtr_->interaction().chi(1,2) * (-systemPtr_->cField(0)[k]);
+            lagrangian_[k] /= systemPtr_->mixture().nMonomer();
+         }
+      }
+    
+      for (int i = 0; i < systemPtr_->mixture().nMonomer(); ++i) {
+         for(int k = 0; k < systemPtr_->basis().nStar(); ++k) {
+            tempDev[i][k] += lagrangian_[k] - systemPtr_->wField(i)[k];
+         }
+      }
+      
       devHists_.append(tempDev);
 
       if (isFlexible_){
@@ -323,36 +332,12 @@ namespace Pspc
    {
       double error;
 
-      #if 0
-      // Error as defined in Matsen's Papers
-      double dError = 0;
-      double wError = 0;
-      for ( int i = 0; i < systemPtr_->mixture().nMonomer(); i++) {
-         for ( int j = 0; j < systemPtr_->basis().nStar() - 1; j++) {
-            dError += devHists_[0][i][j] * devHists_[0][i][j];
-
-            //the extra shift is due to the zero indice coefficient being
-            //exactly known
-            wError += systemPtr_->wField(i)[j+1] * systemPtr_->wField(i)[j+1];
-         }
-      }
-
-      if (isFlexible_){
-         for ( int i = 0; i < (systemPtr_->unitCell()).nParameter() ; i++) {
-            dError +=  devCpHists_[0][i] *  devCpHists_[0][i];
-            wError +=  (systemPtr_->unitCell()).parameters() [i] * (systemPtr_->unitCell()).parameters() [i];
-         }
-      }
-      Log::file() << " dError :" << Dbl(dError)<<std::endl;
-      Log::file() << " wError :" << Dbl(wError)<<std::endl;
-      error = sqrt(dError / wError);
-      #endif
 
       // Error by Max Residuals
       double temp1 = 0;
       double temp2 = 0;
       for ( int i = 0; i < systemPtr_->mixture().nMonomer(); i++) {
-         for ( int j = 0; j < systemPtr_->basis().nStar() - 1; j++) {
+         for ( int j = 0; j < systemPtr_->basis().nStar(); j++) {
             if (temp1 < fabs (devHists_[0][i][j]))
                 temp1 = fabs (devHists_[0][i][j]);
          }
@@ -411,7 +396,7 @@ namespace Pspc
                invertMatrix_(i,j) = 0;
                for (int k = 0; k < nMonomer; ++k) {
                   elm = 0;
-                  for (int l = 0; l < nStar - 1; ++l) {
+                  for (int l = 0; l < nStar; ++l) {
                      elm +=
                             ((devHists_[0][k][l] - devHists_[i+1][k][l])*
                              (devHists_[0][k][l] - devHists_[j+1][k][l]));
@@ -432,7 +417,7 @@ namespace Pspc
 
             vM_[i] = 0;
             for (int j = 0; j < nMonomer; ++j) {
-               for (int k = 0; k < nStar - 1; ++k) {
+               for (int k = 0; k < nStar; ++k) {
                   vM_[i] += ( (devHists_[0][j][k] - devHists_[i+1][j][k]) *
                                devHists_[0][j][k] );
                }
@@ -466,9 +451,9 @@ namespace Pspc
 
       if (itr == 1) {
          for (int i = 0; i < mixture.nMonomer(); ++i) {
-            for (int j = 0; j < systemPtr_->basis().nStar() - 1; ++j) {
-               systemPtr_->wField(i)[j+1]
-                      = omHists_[0][i][j+1] + lambda_*devHists_[0][i][j];
+            for (int j = 0; j < systemPtr_->basis().nStar(); ++j) {
+               systemPtr_->wField(i)[j]
+                      = omHists_[0][i][j] + lambda_*devHists_[0][i][j];
             }
          }
 
@@ -486,24 +471,24 @@ namespace Pspc
 
       } else {
          for (int j = 0; j < mixture.nMonomer(); ++j) {
-            for (int k = 0; k < systemPtr_->basis().nStar() - 1; ++k) {
-               wArrays_[j][k] = omHists_[0][j][k + 1];
+            for (int k = 0; k < systemPtr_->basis().nStar(); ++k) {
+               wArrays_[j][k] = omHists_[0][j][k];
                dArrays_[j][k] = devHists_[0][j][k];
             }
          }
          for (int i = 0; i < nHist_; ++i) {
             for (int j = 0; j < mixture.nMonomer(); ++j) {
-               for (int k = 0; k < systemPtr_->basis().nStar() - 1; ++k) {
-                  wArrays_[j][k] += coeffs_[i] * ( omHists_[i+1][j][k+1] -
-                                                   omHists_[0][j][k+1] );
+               for (int k = 0; k < systemPtr_->basis().nStar(); ++k) {
+                  wArrays_[j][k] += coeffs_[i] * ( omHists_[i+1][j][k] -
+                                                   omHists_[0][j][k] );
                   dArrays_[j][k] += coeffs_[i] * ( devHists_[i+1][j][k] -
                                                    devHists_[0][j][k] );
                }
             }
          }
          for (int i = 0; i < mixture.nMonomer(); ++i) {
-            for (int j = 0; j < systemPtr_->basis().nStar() - 1; ++j) {
-              systemPtr_->wField(i)[j+1] = wArrays_[i][j]
+            for (int j = 0; j < systemPtr_->basis().nStar(); ++j) {
+              systemPtr_->wField(i)[j] = wArrays_[i][j]
                                          + lambda_ * dArrays_[i][j];
             }
          }
@@ -526,7 +511,7 @@ namespace Pspc
             unitCell.setParameters(parameters);
             unitCell.setLattice();
             mixture.setupUnitCell(unitCell);
-	    systemPtr_->basis().update();
+            systemPtr_->basis().update();
          }
       }
    }

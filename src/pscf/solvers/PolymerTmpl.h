@@ -136,6 +136,8 @@ namespace Pscf
       */
       const Pair<int>& propagatorId(int i) const;
 
+      int firstMonomerSeen(int i) const;
+
       //@}
       /// \name Accessors (by value)
       //@{
@@ -155,6 +157,9 @@ namespace Pscf
       */
       int nPropagator() const;  //
 
+      int minPropgCount() const;
+
+      int firstMonomerSeenCount() const;
       /**
       * Total length of all blocks = volume / reference volume.
       */
@@ -164,7 +169,8 @@ namespace Pscf
 
    protected:
 
-      virtual void makePlan();
+      virtual void makePlan(std::vector<int>& firstMonomerSeen);
+      std::vector<int> firstMonomerSeen_;
 
    private:
 
@@ -186,6 +192,7 @@ namespace Pscf
       /// Number of propagators (two per block).
       int nPropagator_;
 
+      int minPropgCount_;
    };
 
    /*
@@ -201,6 +208,14 @@ namespace Pscf
    template <class Block>
    inline int PolymerTmpl<Block>::nBlock() const
    {  return nBlock_; }
+
+   template <class Block>
+   inline int PolymerTmpl<Block>::minPropgCount() const
+   {  return minPropgCount_; }
+
+   template <class Block>
+   inline int PolymerTmpl<Block>::firstMonomerSeenCount() const
+   { return firstMonomerSeen_.size(); }
 
    /*
    * Number of propagators.
@@ -221,6 +236,10 @@ namespace Pscf
       }
       return value;
    }
+
+   template <class Block>
+   inline int PolymerTmpl<Block>::firstMonomerSeen(int id) const
+   { return firstMonomerSeen_[id];}
 
    /*
    * Get a specified Vertex.
@@ -252,7 +271,7 @@ namespace Pscf
    Pair<int> const & PolymerTmpl<Block>::propagatorId(int id) const
    {
       UTIL_CHECK(id >= 0);  
-      UTIL_CHECK(id < nPropagator_);  
+      UTIL_CHECK(id < minPropgCount_);  
       return propagatorIds_[id]; 
    }
 
@@ -329,6 +348,22 @@ namespace Pscf
       // Add blocks to vertices
       int vertexId0, vertexId1;
       Block* blockPtr;
+      for (int blockId = 0, count = 0; blockId < nBlock_; ++blockId) {
+         if(blocks_[blockId].monomerId() == count) {
+            firstMonomerSeen_.push_back(blockId);
+            count++;
+         }
+      }
+      int monomerCount = firstMonomerSeen_.size();
+      
+      //int firstNotBackBlockPtr;
+      //for (int blockId = 0; blockId < nBlock_; ++blockId) {
+      //   if(blocks_[blockId].monomerId() == 1) {
+      //      firstNotBackBlockPtr = blockId;
+      //      break;
+      //   }
+      //}
+
       for (int blockId = 0; blockId < nBlock_; ++blockId) {
           blockPtr = &(blocks_[blockId]);
           vertexId0 = blockPtr->vertexId(0);
@@ -337,7 +372,7 @@ namespace Pscf
           vertices_[vertexId1].addBlock(*blockPtr);
       }
 
-      makePlan();
+      makePlan(firstMonomerSeen_);
 
       // Read ensemble and phi or mu
       ensemble_ = Species::Closed;
@@ -354,8 +389,12 @@ namespace Pscf
       Propagator * propagatorPtr = 0;
       Pair<int> propagatorId;
       int blockId, directionId, vertexId, i;
+      int lengthOfBackBone = firstMonomerSeen_[1] - 1;
+      bool isLast = true;
+      //std::cout<<"length of back bone " <<firstMonomerSeen_[1]<<std::endl;
       for (blockId = 0; blockId < nBlock(); ++blockId) {
          // Add sources
+         //std::cout<<"This is sources for block "<<blockId<<std::endl;
          for (directionId = 0; directionId < 2; ++directionId) {
             vertexId = block(blockId).vertexId(directionId);
             vertexPtr = &vertex(vertexId);
@@ -365,18 +404,43 @@ namespace Pscf
                if (propagatorId[0] == blockId) {
                   UTIL_CHECK(propagatorId[1] != directionId);
                } else {
+                  //copy the results of side chains from the first side chain
+                  if(propagatorId[0] > lengthOfBackBone && propagatorId[1] == 0) {
+
+                     //figure out which monomer
+                     //std::cout<<"propagatorId[0] "<<propagatorId[0]<<std::endl;
+                     isLast = true;
+                     for(int i = 1; i < firstMonomerSeen_.size(); ++i) {
+                        //std::cout<<"first monomer seen between " << firstMonomerSeen_[i-1]<<' '<<firstMonomerSeen_[i]<<std::endl;
+                        if(propagatorId[0] >= firstMonomerSeen_[i-1] && propagatorId[0] < firstMonomerSeen_[i]) {
+                           propagatorId[0] = firstMonomerSeen_[i-1];
+                           propagatorId[1] = 0;//tail of forward propagator
+                           isLast = false;
+                           break;
+                        }
+                     }
+                     //end of array
+                     if(isLast) {
+                        propagatorId[0] = firstMonomerSeen_[firstMonomerSeen_.size() - 1];
+                        propagatorId[1] = 0;//tail of forward propagator;
+                     }
+
+                  }
+                  //std::cout<<propagatorId[0] <<' ' <<propagatorId[1]<<' ';
                   sourcePtr = 
                      &block(propagatorId[0]).propagator(propagatorId[1]);
                   propagatorPtr->addSource(*sourcePtr);
                }
             }
+            //std::cout<<std::endl;
          }
-
       }
+      //std::cout<<"Adding soruces complete "<<std::endl;
+
    }
 
    template <class Block>
-   void PolymerTmpl<Block>::makePlan()
+   void PolymerTmpl<Block>::makePlan(std::vector<int>& firstMonomerSeen)
    {
       if (nPropagator_ != 0) {
          UTIL_THROW("nPropagator !=0 on entry");
@@ -392,9 +456,60 @@ namespace Pscf
       }
 
       Pair<int> propagatorId;
-      Vertex* inVertexPtr = 0;
-      int inVertexId = -1;
-      bool isReady;
+      //Vertex* inVertexPtr = 0;
+      // int inVertexId = -1;
+      //bool isReady;
+
+      //the brush polymer follows a specific order in the propagator ordering.
+      //minPropgCount_ = 0;
+      //int firstNotBackBone = 0;
+      //for(int iBlock = 0; iBlock < nBlock_; ++iBlock) {
+      //   if(blocks_[iBlock].monomerId() == 1) {
+      //      firstNotBackBone = iBlock;
+      //      break;
+      //   }
+      //}
+
+      for(int i = 0; i < firstMonomerSeen.size() - 1; ++i) {
+         //the zeroth block is the backbone chain
+         propagatorIds_[minPropgCount_][0] = firstMonomerSeen[i + 1];
+         propagatorIds_[minPropgCount_][1] = 0; //forward direction
+         minPropgCount_++;
+      }
+
+      //do the side chain once first -- how many monomers?
+      //propagatorIds_[minPropgCount_][0] = firstNotBackBone;
+      //propagatorIds_[minPropgCount_][1] = 0; //forward direction
+      //minPropgCount_++;
+
+      //do the backbone chains in the forward then backward direction
+      //assume the backbone blocks are arranged
+      for(int iBlock = 0; iBlock < nBlock_; ++iBlock) {
+         if(blocks_[iBlock].monomerId() == 0){ //assumption
+            propagatorIds_[minPropgCount_][0] = iBlock;
+            propagatorIds_[minPropgCount_][1] = 0; //forward direction
+            minPropgCount_++;
+         }
+      }
+      //also this configuration assumes that the side chains are labelled first
+      for(int iBlock = nBlock_ - 1; iBlock >= 0; --iBlock) {
+         if(blocks_[iBlock].monomerId() == 0){ //assumption
+            propagatorIds_[minPropgCount_][0] = iBlock;
+            propagatorIds_[minPropgCount_][1] = 1; //reverse direction
+            minPropgCount_++;
+         }
+      }
+      
+      //the last calculation is to do the reverse side chain simulataneously
+      for(int i = 0; i < firstMonomerSeen.size() - 1; ++i) {
+         propagatorIds_[minPropgCount_][0] = firstMonomerSeen[i + 1];
+         propagatorIds_[minPropgCount_][1] = 1; //reverse direction
+         minPropgCount_++;
+      }
+      //propagatorIds_[minPropgCount_][0] = firstNotBackBone;
+      //propagatorIds_[minPropgCount_][1] = 1; //reverse direction
+      //minPropgCount_++;
+#if 0
       while (nPropagator_ < nBlock_*2) {
          for (int iBlock = 0; iBlock < nBlock_; ++iBlock) {
             for (int iDirection = 0; iDirection < 2; ++iDirection) {
@@ -421,6 +536,12 @@ namespace Pscf
             }
          }
       }
+#endif
+      //print propagator orders
+      //std::cout<<"These are the propagators"<<std::endl;
+      //for(int i = 0 ; i < minPropgCount_; ++i) {
+      //   std::cout<<"Block id: "<<propagatorIds_[i][0] <<" propagator dir : "<< propagatorIds_[i][1]<<std::endl;
+      //}
 
    }
 
@@ -431,6 +552,48 @@ namespace Pscf
    void PolymerTmpl<Block>::solve()
    {
 
+#if 0
+      // Clear all propagators
+      for (int j = 0; j < minPropgCount_; ++j) {
+         propagator(j).setIsSolved(false);
+      }
+
+      // Solve modified diffusion equation for all propagators
+      // The brush polymer follows a specific order
+      // 1) solve the forward propg for the side chain
+      // 2-N-1) solve the forward and backward for the backbone
+      // N) solve the summation of the backward propg of the side chain
+      for (int j = 0; j < minPropgCount_ - 1; ++j) {
+         UTIL_CHECK(propagator(j).isReady());
+         propagator(j).solve();
+      }
+      
+      WField& qh = propagator(0, 1).tailFree();
+      qh += propagator(0,0).tailFree() * propagator(1,1).tailFree();
+      qh += propagator(1,0).tailFree() * propagator(2,1).tailFree();
+      qh += propagator(2,0).tailFree() * propagator(3,1).tailFree();
+      qh += propagator(3,0).tailFree();
+      propagator(minPropgCount_ -1).solve(qh);
+
+      // Compute molecular partition function
+      // Careful here -> ordering matters since not all propagator is solved
+      // Still correct under the assumption of backbone specification
+      double q = block(0).propagator(0).computeQ();
+      if (ensemble() == Species::Closed) {
+         mu_ = log(phi_/q);
+      } 
+      else if (ensemble() == Species::Open) {
+         phi_ = exp(mu_)*q;
+      }
+
+      // Compute block concentration fields
+      // Change backbone computation -> only once
+      double prefactor = phi_ / (q *length() );
+      for (int i = 0; i < nBlock(); ++i) {
+         block(i).computeConcentration(prefactor);
+      }
+#endif
+#if 0
       // Clear all propagators
       for (int j = 0; j < nPropagator(); ++j) {
          propagator(j).setIsSolved(false);
@@ -456,7 +619,7 @@ namespace Pscf
       for (int i = 0; i < nBlock(); ++i) {
          block(i).computeConcentration(prefactor);
       }
-
+#endif
    }
  
 }
