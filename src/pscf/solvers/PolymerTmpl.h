@@ -136,7 +136,7 @@ namespace Pscf
       */
       const Pair<int>& propagatorId(int i) const;
 
-      int firstMonomerSeen(int i) const;
+      int brushStruct(int i) const;
 
       //@}
       /// \name Accessors (by value)
@@ -159,7 +159,7 @@ namespace Pscf
 
       int minPropgCount() const;
 
-      int firstMonomerSeenCount() const;
+      int bStructCount() const;
       /**
       * Total length of all blocks = volume / reference volume.
       */
@@ -169,8 +169,9 @@ namespace Pscf
 
    protected:
 
-      virtual void makePlan(std::vector<int>& firstMonomerSeen);
-      std::vector<int> firstMonomerSeen_;
+      virtual void makePlan();
+      int bStructCount_;
+      DArray<int> brushStruct_;
 
    private:
 
@@ -214,8 +215,8 @@ namespace Pscf
    {  return minPropgCount_; }
 
    template <class Block>
-   inline int PolymerTmpl<Block>::firstMonomerSeenCount() const
-   { return firstMonomerSeen_.size(); }
+   inline int PolymerTmpl<Block>::bStructCount() const
+   { return bStructCount_; }
 
    /*
    * Number of propagators.
@@ -238,8 +239,8 @@ namespace Pscf
    }
 
    template <class Block>
-   inline int PolymerTmpl<Block>::firstMonomerSeen(int id) const
-   { return firstMonomerSeen_[id];}
+   inline int PolymerTmpl<Block>::brushStruct(int id) const
+   { return brushStruct_[id];}
 
    /*
    * Get a specified Vertex.
@@ -330,6 +331,10 @@ namespace Pscf
    template <class Block>
    void PolymerTmpl<Block>::readParameters(std::istream& in)
    {
+
+      read<int>(in, "bStructCount", bStructCount_);
+      brushStruct_.allocate(bStructCount_);
+      readDArray<int>(in, "brushStruct", brushStruct_, bStructCount_);
       read<int>(in, "nBlock", nBlock_);
       read<int>(in, "nVertex", nVertex_);
 
@@ -347,22 +352,7 @@ namespace Pscf
 
       // Add blocks to vertices
       int vertexId0, vertexId1;
-      Block* blockPtr;
-      for (int blockId = 0, count = 0; blockId < nBlock_; ++blockId) {
-         if(blocks_[blockId].monomerId() == count) {
-            firstMonomerSeen_.push_back(blockId);
-            count++;
-         }
-      }
-      int monomerCount = firstMonomerSeen_.size();
-      
-      //int firstNotBackBlockPtr;
-      //for (int blockId = 0; blockId < nBlock_; ++blockId) {
-      //   if(blocks_[blockId].monomerId() == 1) {
-      //      firstNotBackBlockPtr = blockId;
-      //      break;
-      //   }
-      //}
+      Block* blockPtr;      
 
       for (int blockId = 0; blockId < nBlock_; ++blockId) {
           blockPtr = &(blocks_[blockId]);
@@ -372,7 +362,7 @@ namespace Pscf
           vertices_[vertexId1].addBlock(*blockPtr);
       }
 
-      makePlan(firstMonomerSeen_);
+      makePlan();
 
       // Read ensemble and phi or mu
       ensemble_ = Species::Closed;
@@ -389,8 +379,10 @@ namespace Pscf
       Propagator * propagatorPtr = 0;
       Pair<int> propagatorId;
       int blockId, directionId, vertexId, i;
-      int lengthOfBackBone = firstMonomerSeen_[1] - 1;
-      bool isLast = true;
+      int lengthOfBackBone = brushStruct_[0];
+      //bool isLast = true;
+
+      //the key difference is that sources are changed for side chains
       //std::cout<<"length of back bone " <<firstMonomerSeen_[1]<<std::endl;
       for (blockId = 0; blockId < nBlock(); ++blockId) {
          // Add sources
@@ -404,16 +396,31 @@ namespace Pscf
                if (propagatorId[0] == blockId) {
                   UTIL_CHECK(propagatorId[1] != directionId);
                } else {
-                  //copy the results of side chains from the first side chain
-                  if(propagatorId[0] > lengthOfBackBone && propagatorId[1] == 0) {
+                  //Any source that comes from forward side chain 
+                  //uses the result from the first side chain
+                  if(propagatorId[0] > lengthOfBackBone  - 1 && propagatorId[1] == 0) {
 
                      //figure out which monomer
-                     //std::cout<<"propagatorId[0] "<<propagatorId[0]<<std::endl;
+                     int leftRange = brushStruct_[0];
+                     int rightRange = leftRange + brushStruct_[1];
+                     for(int i = 1; i < bStructCount_; ++i) {
+                        if(propagatorId[0] >= leftRange && propagatorId[0] < rightRange) {
+                           propagatorId[0] = leftRange;
+                           propagatorId[1] = 0; //tail of forward propagator
+                           break;
+                        }
+                        if( i != bStructCount_ - 1) {
+                           leftRange = rightRange;
+                           rightRange = leftRange + brushStruct_[i + 1];
+                        }
+                     }
+
+                     /*
                      isLast = true;
-                     for(int i = 1; i < firstMonomerSeen_.size(); ++i) {
+                     for(int i = 1; i < bStructCount_; ++i) {
                         //std::cout<<"first monomer seen between " << firstMonomerSeen_[i-1]<<' '<<firstMonomerSeen_[i]<<std::endl;
-                        if(propagatorId[0] >= firstMonomerSeen_[i-1] && propagatorId[0] < firstMonomerSeen_[i]) {
-                           propagatorId[0] = firstMonomerSeen_[i-1];
+                        if(propagatorId[0] >= brushStruct_[i-1] && propagatorId[0] < brushStruct_[i]) {
+                           propagatorId[0] = brushStruct_[i-1];
                            propagatorId[1] = 0;//tail of forward propagator
                            isLast = false;
                            break;
@@ -421,9 +428,10 @@ namespace Pscf
                      }
                      //end of array
                      if(isLast) {
-                        propagatorId[0] = firstMonomerSeen_[firstMonomerSeen_.size() - 1];
+                        propagatorId[0] = brushStruct_[firstMonomerSeen_.size() - 1];
                         propagatorId[1] = 0;//tail of forward propagator;
                      }
+                     */
 
                   }
                   //std::cout<<propagatorId[0] <<' ' <<propagatorId[1]<<' ';
@@ -435,12 +443,12 @@ namespace Pscf
             //std::cout<<std::endl;
          }
       }
-      //std::cout<<"Adding soruces complete "<<std::endl;
+      //std::cout<<"Adding sources complete "<<std::endl;
 
    }
 
    template <class Block>
-   void PolymerTmpl<Block>::makePlan(std::vector<int>& firstMonomerSeen)
+   void PolymerTmpl<Block>::makePlan()
    {
       if (nPropagator_ != 0) {
          UTIL_THROW("nPropagator !=0 on entry");
@@ -461,87 +469,39 @@ namespace Pscf
       //bool isReady;
 
       //the brush polymer follows a specific order in the propagator ordering.
-      //minPropgCount_ = 0;
-      //int firstNotBackBone = 0;
-      //for(int iBlock = 0; iBlock < nBlock_; ++iBlock) {
-      //   if(blocks_[iBlock].monomerId() == 1) {
-      //      firstNotBackBone = iBlock;
-      //      break;
-      //   }
-      //}
+      minPropgCount_ = 0;
 
-      for(int i = 0; i < firstMonomerSeen.size() - 1; ++i) {
-         //the zeroth block is the backbone chain
-         propagatorIds_[minPropgCount_][0] = firstMonomerSeen[i + 1];
+      //the first few forward propagators are the side chains
+      int leftRange = 0;
+      for(int i = 0; i < bStructCount_ - 1; ++i) {
+         leftRange += brushStruct_[i];
+         propagatorIds_[minPropgCount_][0] = leftRange;
          propagatorIds_[minPropgCount_][1] = 0; //forward direction
          minPropgCount_++;
       }
 
-      //do the side chain once first -- how many monomers?
-      //propagatorIds_[minPropgCount_][0] = firstNotBackBone;
-      //propagatorIds_[minPropgCount_][1] = 0; //forward direction
-      //minPropgCount_++;
-
       //do the backbone chains in the forward then backward direction
       //assume the backbone blocks are arranged
-      for(int iBlock = 0; iBlock < nBlock_; ++iBlock) {
-         if(blocks_[iBlock].monomerId() == 0){ //assumption
-            propagatorIds_[minPropgCount_][0] = iBlock;
-            propagatorIds_[minPropgCount_][1] = 0; //forward direction
-            minPropgCount_++;
-         }
-      }
-      //also this configuration assumes that the side chains are labelled first
-      for(int iBlock = nBlock_ - 1; iBlock >= 0; --iBlock) {
-         if(blocks_[iBlock].monomerId() == 0){ //assumption
-            propagatorIds_[minPropgCount_][0] = iBlock;
-            propagatorIds_[minPropgCount_][1] = 1; //reverse direction
-            minPropgCount_++;
-         }
+      for(int i = 0; i < brushStruct_[0]; ++i) {
+         propagatorIds_[minPropgCount_][0] = i;
+         propagatorIds_[minPropgCount_][1] = 0; //forward direction
+         minPropgCount_++;
       }
       
-      //the last calculation is to do the reverse side chain simulataneously
-      for(int i = 0; i < firstMonomerSeen.size() - 1; ++i) {
-         propagatorIds_[minPropgCount_][0] = firstMonomerSeen[i + 1];
+      for(int i = brushStruct_[0] - 1; i >= 0; --i) {
+         propagatorIds_[minPropgCount_][0] = i;
          propagatorIds_[minPropgCount_][1] = 1; //reverse direction
          minPropgCount_++;
       }
-      //propagatorIds_[minPropgCount_][0] = firstNotBackBone;
-      //propagatorIds_[minPropgCount_][1] = 1; //reverse direction
-      //minPropgCount_++;
-#if 0
-      while (nPropagator_ < nBlock_*2) {
-         for (int iBlock = 0; iBlock < nBlock_; ++iBlock) {
-            for (int iDirection = 0; iDirection < 2; ++iDirection) {
-               if (isFinished(iBlock, iDirection) == false) {
-                  inVertexId = blocks_[iBlock].vertexId(iDirection);
-                  inVertexPtr = &vertices_[inVertexId];
-                  isReady = true;
-                  for (int j = 0; j < inVertexPtr->size(); ++j) {
-                     propagatorId = inVertexPtr->inPropagatorId(j);
-                     if (propagatorId[0] != iBlock) {
-                        if (!isFinished(propagatorId[0], propagatorId[1])) {
-                           isReady = false;
-                           break;
-                        }
-                     }
-                  }
-                  if (isReady) {
-                     propagatorIds_[nPropagator_][0] = iBlock;
-                     propagatorIds_[nPropagator_][1] = iDirection;
-                     isFinished(iBlock, iDirection) = true;
-                     ++nPropagator_;
-                  }
-               }
-            }
-         }
+      
+      //the last calculation is to do the reverse side chain simulataneously
+      leftRange = 0;
+      for(int i = 0; i < bStructCount_ - 1; ++i) {
+         leftRange += brushStruct_[i];
+         propagatorIds_[minPropgCount_][0] = leftRange;
+         propagatorIds_[minPropgCount_][1] = 1; //reverse direction
+         minPropgCount_++;
       }
-#endif
-      //print propagator orders
-      //std::cout<<"These are the propagators"<<std::endl;
-      //for(int i = 0 ; i < minPropgCount_; ++i) {
-      //   std::cout<<"Block id: "<<propagatorIds_[i][0] <<" propagator dir : "<< propagatorIds_[i][1]<<std::endl;
-      //}
 
    }
 

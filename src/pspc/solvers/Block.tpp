@@ -71,7 +71,7 @@ namespace Pspc {
          tempNs = 1;
       } 
       ds_ = (length()/double(tempNs * 2.0));
-      ns_ = (length()/ds_)  + 1;
+      ns_ = 2 * tempNs + 1;
 
       // Compute Fourier space kMeshDimensions_ 
       for (int i = 0; i < D; ++i) {
@@ -243,7 +243,6 @@ namespace Pspc {
       for (i = 0; i < nx; ++i) {
          cField()[i] *= prefactor;
       }
-      //std::cout<<"cField()[0] = "<<cField()[0]<<std::endl;
 
    }
 

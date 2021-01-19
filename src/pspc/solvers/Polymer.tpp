@@ -49,7 +49,7 @@ namespace Pspc {
       for (int j = 0; j < nBlock(); ++j) {
          block(j).setupUnitCell(unitCell);
       }
-      std::cout<<"setup unit cell should only happens once, if you see this tell gk"<<std::endl;
+      //std::cout<<"setup unit cell should only happens once, if you see this tell gk"<<std::endl;
    }
 
    /*
@@ -59,23 +59,23 @@ namespace Pspc {
    void Polymer<D>::compute(DArray<WField> const & wFields)
    {
 
-      now = Timer::now();
-      setupTimer.start(now);
+      //now = Timer::now();
+      //setupTimer.start(now);
       // Setup solvers for all blocks
       //not all blocks need solver
       int monomerId;
-      int blockId;
-      for(int i = 0; i < Base::firstMonomerSeenCount(); ++i) {
-         if( i == 0) { //do all backbones
-            for(int j = 0; j < Base::firstMonomerSeen(1); ++j) {
-               monomerId = block(j).monomerId();
-               block(j).setupSolver(wFields[monomerId]);
-            }
-         } else {
-            blockId = Base::firstMonomerSeen(i);
-            monomerId = block(blockId).monomerId();
-            block(blockId).setupSolver(wFields[monomerId]);
-         }
+      int blockId = 0;
+
+      //do all backbones
+      for(int i = 0; i < Base::brushStruct(0); ++i) {
+         monomerId = block(i).monomerId();
+         block(i).setupSolver(wFields[monomerId]);
+      }
+      for(int i = 0; i < Base::bStructCount() - 1; ++i) {
+         blockId += Base::brushStruct(i);
+         monomerId = block(blockId).monomerId();
+         block(blockId).setupSolver(wFields[monomerId]);
+            
       }
 
       //for (int j = 0; j < nBlock(); ++j) {
@@ -92,8 +92,8 @@ namespace Pspc {
          Base::propagator(j).setIsSolved(false);
       }
 
-      now = Timer::now();
-      setupTimer.stop(now);
+      //now = Timer::now();
+      //setupTimer.stop(now);
 
       // Solve modified diffusion equation for all propagators
       // The brush polymer follows a specific order
@@ -102,28 +102,28 @@ namespace Pspc {
       // N) solve the summation of the backward propg of the side chain
       
 
-      now = Timer::now();
-      propagatorTimer.start(now);
+      //now = Timer::now();
+      //propagatorTimer.start(now);
 
-      now = Timer::now();
-      propTrueTimer.start(now);
+      // now = Timer::now();
+      //propTrueTimer.start(now);
 
-      //determine how many forward propagators to solve
-      for (int j = 0; j < minPropgCount() - (Base::firstMonomerSeen_.size() - 1); ++j) {
+      //solve all but the reverse propagator of side chains
+      for (int j = 0; j < minPropgCount() - (Base::bStructCount() - 1); ++j) {
          UTIL_CHECK(Base::propagator(j).isReady());
          Base::propagator(j).solve();
          //std::cout<<j<< " is completed "<<std::endl;
       }
       
-      now = Timer::now();
-      propTrueTimer.stop(now);
+      //now = Timer::now();
+      //propTrueTimer.stop(now);
 
       //get reference to head of propagator
       int nx = Base::propagator(minPropgCount() -1).meshSize();
 
-      for (int j = 0; j < Base::firstMonomerSeen_.size() - 1; ++j) {
+      for (int j = 0; j < Base::bStructCount() - 1; ++j) {
 
-         int index = minPropgCount() - 1 - (Base::firstMonomerSeen_.size() - 2)+ j;
+         int index = minPropgCount() - (Base::bStructCount() - 1) + j;
          //std::cout<<"index "<<index<<std::endl;
          WField& qh = Base::propagator(index).headFree();
          
@@ -132,54 +132,53 @@ namespace Pspc {
          //}
 
          //for all blocks with the same type get the reverse direction
-         int indexEnd;
-         if(j + 2 >= Base::firstMonomerSeen_.size() ) {
-            indexEnd = nBlock();
-         } else {
-            indexEnd = Base::firstMonomerSeen_[j + 2];
+         int leftRange = 0;
+         int k = 0;
+         for(; k < j + 1; ++k) {
+            leftRange += Base::brushStruct_[k];
          }
-         for(int blockId = Base::firstMonomerSeen_[j + 1]; 
-             blockId < indexEnd; ++blockId) {
+         int rightRange = leftRange + Base::brushStruct_[k];
+         for(int blockId = leftRange; 
+             blockId < rightRange; ++blockId) {
 
-            now = Timer::now();
-            propTrueTimer.start(now);
+            //now = Timer::now();
+            //propTrueTimer.start(now);
 
             block(blockId).propagator(1).computeHead();
             
-            now = Timer::now();
-            propTrueTimer.stop(now);
+            //now = Timer::now();
+            //propTrueTimer.stop(now);
 
             //avoid adding the first propagator itself
             //qh is the first propagator
-            if(blockId != Base::firstMonomerSeen_[j+1]) {
+            if(blockId != leftRange) {
                qh += block(blockId).propagator(1).headFree();
             }
          }
 
-         now = Timer::now();
-         propTrueTimer.start(now);
+         // now = Timer::now();
+         //propTrueTimer.start(now);
 
          Base::propagator(index).solveFree();
          //Base::propagator(index).solve(qh);
 
-         now = Timer::now();
-         propTrueTimer.stop(now);
+         // now = Timer::now();
+         //propTrueTimer.stop(now);
 
 
       }
-      now = Timer::now();
-      propagatorTimer.stop(now);
+      //now = Timer::now();
+      //propagatorTimer.stop(now);
 
 
-      now = Timer::now();
-      rhoTimer.start(now);
+      //now = Timer::now();
+      //rhoTimer.start(now);
 
       // Compute molecular partition function
       // Careful here -> ordering matters since not all propagator is solved
       // Still correct under the assumption of backbone specification
       double q = block(0).propagator(0).computeQ();
 
-      //std::cout<<"big Q : "<<q<<std::endl;
       if (ensemble() == Species::Closed) {
          mu_ = log(phi_/q);
       } 
@@ -192,25 +191,27 @@ namespace Pspc {
       //minPropgcount is not exactly right here
       // should be backbone length + side chain amount
       double prefactor = phi_ / (q *length() );
-      for (int i = 0; i < Base::firstMonomerSeen_[1]; ++i) {
+      for (int i = 0; i < Base::brushStruct_[0]; ++i) {
          block(i).computeConcentration(prefactor);
       }
-      for(int i = 1; i < Base::firstMonomerSeen_.size(); ++i) {
-         block(Base::firstMonomerSeen_[i]).computeConcentration(prefactor);
+      int index = 0;
+      for(int i = 1; i < Base::bStructCount(); ++i) {
+         index += Base::brushStruct_[i - 1];
+         block(index).computeConcentration(prefactor);
       }
 
-      now = Timer::now();
-      rhoTimer.stop(now);
+      //now = Timer::now();
+      //rhoTimer.stop(now);
 
 
-      double propTime = propagatorTimer.time();
-      double setupTime = setupTimer.time();
-      double rhoTime = rhoTimer.time();
-      double propTrueTime = propTrueTimer.time();
-      Log::file() << "setup time  = " << setupTime  << " s  \n";
-      Log::file() << "prop time  = " << propTime  << " s  \n";
-      Log::file() << "proptrue time  = " << propTrueTime  << " s  \n";
-      Log::file() << "rho time  = " << rhoTime  << " s  \n";
+      //double propTime = propagatorTimer.time();
+      //double setupTime = setupTimer.time();
+      //double rhoTime = rhoTimer.time();
+      //double propTrueTime = propTrueTimer.time();
+      //Log::file() << "setup time  = " << setupTime  << " s  \n";
+      //Log::file() << "prop time  = " << propTime  << " s  \n";
+      //Log::file() << "proptrue time  = " << propTrueTime  << " s  \n";
+      //Log::file() << "rho time  = " << rhoTime  << " s  \n";
 
    }
 
@@ -228,16 +229,19 @@ namespace Pspc {
 
       // Compute and accumulate stress contributions from all blocks
       double prefactor = exp(mu_)/length();
-      for (int i = 0; i < Base::firstMonomerSeen_[1]; ++i) {
+      for (int i = 0; i < Base::brushStruct_[0]; ++i) {
          block(i).computeStress(prefactor);
          for (int j=0; j < unitCellPtr_->nParameter() ; ++j){
             stress_[j] += block(i).stress(j);
          }
       }
-      for(int i = 1; i < Base::firstMonomerSeen_.size(); ++i) {
-         block(Base::firstMonomerSeen_[i]).computeStress(prefactor);
+
+      int index = 0;
+      for(int i = 1; i < Base::bStructCount(); ++i) {
+         index += Base::brushStruct_[i - 1];
+         block(index).computeStress(prefactor);
          for (int j=0; j < unitCellPtr_->nParameter() ; ++j){
-            stress_[j] += block(Base::firstMonomerSeen_[i]).stress(j);
+            stress_[j] += block(index).stress(j);
          }
 
       }

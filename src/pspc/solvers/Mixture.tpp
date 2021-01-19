@@ -53,17 +53,17 @@ namespace Pspc
 
       int i, j, k;
       int blockId;
+      int index;
       // Decides which blocks are necessary to initialize their workspace
       for (i = 0; i < nPolymer(); ++i) {
-         for(j = 0; j < polymer(i).firstMonomerSeenCount(); ++j) {
-            if( j == 0) {
-               for(k = 0; k < polymer(i).firstMonomerSeen(1); ++k) {
-                  polymer(i).block(k).necessary = true;
-               }
-            } else {
-               blockId = polymer(i).firstMonomerSeen(j);
-               polymer(i).block(blockId).necessary = true;
-            }
+         for(k = 0; k < polymer(i).brushStruct(0); ++k) {
+            polymer(i).block(k).necessary = true;
+         }
+         
+         blockId = 0;
+         for(j = 1; j < polymer(i).bStructCount(); ++j) {
+            blockId += polymer(i).brushStruct(j - 1);
+            polymer(i).block(blockId).necessary = true;
          }
       }
 
@@ -94,8 +94,8 @@ namespace Pspc
    void Mixture<D>::compute(DArray<Mixture<D>::WField> const & wFields,
                             DArray<Mixture<D>::CField>& cFields)
    {
-      now = Timer::now();
-      clearTimer.start(now);
+      //now = Timer::now();
+      //clearTimer.start(now);
 
       UTIL_CHECK(meshPtr_);
       UTIL_CHECK(mesh().size() > 0);
@@ -117,59 +117,61 @@ namespace Pspc
          }
       }
 
-      now = Timer::now();
-      clearTimer.stop(now);
-      now = Timer::now();
-      polTimer.start(now);
+      //now = Timer::now();
+      //clearTimer.stop(now);
+      //now = Timer::now();
+      //polTimer.start(now);
 
       // Solve MDE for all polymers
       for (i = 0; i < nPolymer(); ++i) {
          polymer(i).compute(wFields);
       }
 
-      now = Timer::now();
-      polTimer.stop(now);
-      now = Timer::now();
-      cumTimer.start(now);
+      //now = Timer::now();
+      //polTimer.stop(now);
+      //now = Timer::now();
+      //cumTimer.start(now);
 
       // Accumulate monomer concentration fields
       double phi;
+      int blockId;
       for (i = 0; i < nPolymer(); ++i) {
          phi = polymer(i).phi();
-         for(int j = 0; j < polymer(i).firstMonomerSeenCount(); ++j) {
-            if(j == 0) {
-               for(int k = 0; k < polymer(i).firstMonomerSeen(1); ++k) {
-                  int monomerId = polymer(i).block(k).monomerId();
-                  UTIL_CHECK(monomerId >= 0);
-                  UTIL_CHECK(monomerId < nm);
-                  CField& monomerField = cFields[monomerId];
-                  CField& blockField = polymer(i).block(k).cField();
-                  for (int l = 0; l < nx; ++l) {
-                     monomerField[l] += phi * blockField[l];
-                  }
-                  
-               }
-            } else {
-               int blockId = polymer(i).firstMonomerSeen(j);
-               int monomerId = polymer(i).block(blockId).monomerId();
-               UTIL_CHECK(monomerId >= 0);
-               UTIL_CHECK(monomerId < nm);
-               CField& monomerField = cFields[monomerId];
-               CField& blockField = polymer(i).block(blockId).cField();
-               for (int l = 0; l < nx; ++l) {
-                  monomerField[l] += phi * blockField[l];
-               }           
+
+         for(int j = 0; j < polymer(i).brushStruct(0); ++j) {
+            int monomerId = polymer(i).block(j).monomerId();
+            UTIL_CHECK(monomerId >= 0);
+            UTIL_CHECK(monomerId < nm);
+            CField& monomerField = cFields[monomerId];
+            CField& blockField = polymer(i).block(j).cField();
+            for (int l = 0; l < nx; ++l) {
+               monomerField[l] += phi * blockField[l];
             }
-         }         
+         }
+         blockId = 0;
+         for(int j = 1; j < polymer(i).bStructCount(); ++j) {
+            blockId += polymer(i).brushStruct(j - 1);
+            int monomerId = polymer(i).block(blockId).monomerId();
+            UTIL_CHECK(monomerId >= 0);
+            UTIL_CHECK(monomerId < nm);
+            CField& monomerField = cFields[monomerId];
+            CField& blockField = polymer(i).block(blockId).cField();
+            for (int l = 0; l < nx; ++l) {
+               monomerField[l] += phi * blockField[l];
+            }           
+            
+         }
+
       }
-      now = Timer::now();
-      cumTimer.stop(now);
-      double cumTime = cumTimer.time();
-      double clearTime = clearTimer.time();
-      double polTime = polTimer.time();
-      Log::file() << "clear time  = " << clearTime  << " s  \n";
-      Log::file() << "pol time  = " << polTime  << " s  \n";
-      Log::file() << "cum time  = " << cumTime  << " s  \n";
+
+      //now = Timer::now();
+      //cumTimer.stop(now);
+      //double cumTime = cumTimer.time();
+      //double clearTime = clearTimer.time();
+      //double polTime = polTimer.time();
+      //Log::file() << "clear time  = " << clearTime  << " s  \n";
+      //Log::file() << "pol time  = " << polTime  << " s  \n";
+      //Log::file() << "cum time  = " << cumTime  << " s  \n";
 
 
       // To do: Add compute functions and accumulation for solvents.
