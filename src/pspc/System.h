@@ -437,7 +437,10 @@ namespace Pspc
       * Work array (size = # of grid points).
       */
       DArray<double> f_;
-
+       /**
+        * Work array for monomer volume fractions
+        */
+      DArray<double> p_;
       /**
       * Work array (size = # of monomer types).
       */

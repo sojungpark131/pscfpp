@@ -61,6 +61,7 @@ namespace Pspc
       cFields_(),
       f_(),
       c_(),
+      p_(),  //array for monomer volume fractions
       fHelmholtz_(0.0),
       pressure_(0.0),
       hasMixture_(false),
@@ -291,7 +292,7 @@ namespace Pspc
       while (readNext) {
 
          in >> command;
-         Log::file() << command <<std::endl;
+         //Log::file() << command <<std::endl;
 
          if (command == "FINISH") {
             Log::file() << std::endl;
@@ -335,6 +336,7 @@ namespace Pspc
                Log::file() << "Iterator failed to converge\n";
             } else {
                computeFreeEnergy();
+               homogeneous_.computeFreeEnergy(interaction());
                outputThermo(Log::file());
             }
 
@@ -363,25 +365,25 @@ namespace Pspc
          if (command == "WRITE_W_BASIS") {
             UTIL_CHECK(hasWFields_);
             in >> filename;
-            Log::file() << "  " << Str(filename, 20) << std::endl;
+            //Log::file() << "  " << Str(filename, 20) << std::endl;
             fieldIo().writeFieldsBasis(filename, wFields());
          } else 
          if (command == "WRITE_W_RGRID") {
             UTIL_CHECK(hasWFields_);
             in >> filename;
-            Log::file() << "  " << Str(filename, 20) << std::endl;
+            //Log::file() << "  " << Str(filename, 20) << std::endl;
             fieldIo().writeFieldsRGrid(filename, wFieldsRGrid());
          } else 
          if (command == "WRITE_C_BASIS") {
             UTIL_CHECK(hasCFields_);
             in >> filename;
-            Log::file() << "  " << Str(filename, 20) << std::endl;
+            //Log::file() << "  " << Str(filename, 20) << std::endl;
             fieldIo().writeFieldsBasis(filename, cFields());
          } else
          if (command == "WRITE_C_RGRID") {
             UTIL_CHECK(hasCFields_);
             in >> filename;
-            Log::file() << "  " << Str(filename, 20) << std::endl;
+            //Log::file() << "  " << Str(filename, 20) << std::endl;
             fieldIo().writeFieldsRGrid(filename, cFieldsRGrid());
          } else
          if (command == "BASIS_TO_RGRID") {
@@ -563,6 +565,8 @@ namespace Pspc
    void System<D>::computeFreeEnergy()
    {
       fHelmholtz_ = 0.0;
+      double interaction_energy = 0.0;
+      double entropic_energy = 0.0;
  
       // Compute ideal gas contributions to fHelhmoltz_
       Polymer<D>* polymerPtr;
@@ -575,6 +579,7 @@ namespace Pspc
          // Recall: mu = ln(phi/q)
          length = polymerPtr->length();
          fHelmholtz_ += phi*( mu - 1.0 )/length;
+         entropic_energy +=phi*( mu - 1.0 )/length;
       }
 
       int nm  = mixture().nMonomer();
@@ -587,6 +592,8 @@ namespace Pspc
             for (int k = 0; k < nStar; ++k) {
                fHelmholtz_+=
                   cFields_[i][k] * interaction().chi(i,j) * cFields_[j][k];
+               interaction_energy += 
+                  cFields_[i][k] * interaction().chi(i,j) * cFields_[j][k];
             }
          }
 
@@ -594,9 +601,15 @@ namespace Pspc
             temp += wFields_[i][j] * cFields_[i][j];
          }
 
-      }
+      }     
+      
       fHelmholtz_ -= temp;
-
+      entropic_energy -=  temp;
+      
+      std::cout<< std::endl;
+      std::cout<< "entropic_energy : " << entropic_energy<< std::endl;
+      std::cout<< "interaction_energy : " << interaction_energy << std::endl;
+      
       // Compute pressure
       pressure_ = -fHelmholtz_;
       for (int i = 0; i < np; ++i) {
@@ -614,7 +627,7 @@ namespace Pspc
    void System<D>::outputThermo(std::ostream& out)
    {
       out << std::endl;
-      out << "fHelmholtz = " << Dbl(fHelmholtz(), 18, 11) << std::endl;
+      //out << "fHelmholtz = " << Dbl(fHelmholtz(), 18, 11) << std::endl;
       out << "pressure   = " << Dbl(pressure(), 18, 11) << std::endl;
       out << std::endl;
 
@@ -630,6 +643,8 @@ namespace Pspc
              << std::endl;
       }
       out << std::endl;
+      
+      out <<unitCell().parameters()[0] << Dbl(homogeneous_.fHelmholtz(), 18, 11) << Dbl(fHelmholtz(), 18, 11) << Dbl(homogeneous_.c(0)) << Dbl(homogeneous_.c(1));
    }
 
    template <int D>
@@ -644,6 +659,17 @@ namespace Pspc
       UTIL_CHECK(homogeneous_.nMolecule() == np + ns);
       UTIL_CHECK(homogeneous_.nMonomer() == nm);
 
+      // Allocate p_ work array, if necessary
+      if (p_.isAllocated()) {
+         UTIL_CHECK(p_.capacity() == np);		  
+	  } else{
+         p_.allocate(np);
+      }
+      
+      for (int i = 0; i < np; ++i) {
+              p_[i] = mixture().polymer(i).phi();
+      }
+      
       // Allocate c_ work array, if necessary
       if (c_.isAllocated()) {
          UTIL_CHECK(c_.capacity() == nm);
@@ -656,7 +682,7 @@ namespace Pspc
       int k;   // block or clump index
       int nb;  // number of blocks
       int nc;  // number of clumps
- 
+  
       // Loop over polymer molecule species
       for (i = 0; i < np; ++i) {
 
@@ -694,6 +720,8 @@ namespace Pspc
          homogeneous_.molecule(i).computeSize();
 
       }
+      
+      homogeneous_.setComposition(p_); 
 
    }
 
