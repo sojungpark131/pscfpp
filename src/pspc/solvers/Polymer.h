@@ -123,6 +123,7 @@ namespace Pspc {
       using Base::ensemble;
       using Base::solve;
       using Base::length;
+      using Base::blockId;
 
    protected:
 

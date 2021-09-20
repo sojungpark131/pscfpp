@@ -140,7 +140,10 @@ namespace Pscf
       * Get the associated monomer concentration field.
       */
       typename TP::CField& cField();
-   
+      /**
+      * Get the associated monomer concentration field for particular blocks.
+      */
+      typename TP::CField& c2Field();   
       /**
       * Get monomer statistical segment length.
       */
@@ -153,7 +156,10 @@ namespace Pscf
 
       /// Monomer concentration field.
       CField cField_;
-
+      
+      /// Monomer concentration field for particular blocks.
+      CField c2Field_;
+      
       /// Monomer statistical segment length.
       double kuhn_;
 
@@ -184,7 +190,14 @@ namespace Pscf
    inline
    typename TP::CField& BlockTmpl<TP>::cField()
    {  return cField_; }
-
+   /*
+   * Get the monomer concentration field for particular blocks.
+   */
+   template <class TP>
+   inline
+   typename TP::CField& BlockTmpl<TP>::c2Field()
+   {  return c2Field_; }
+   
    /*
    * Get the monomer statistical segment length. 
    */

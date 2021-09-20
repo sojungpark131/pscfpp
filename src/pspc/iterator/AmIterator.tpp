@@ -114,7 +114,7 @@ namespace Pspc
       // Solve MDE for initial state
       solverTimer.start();
       system().mixture().compute(system().wFieldsRGrid(),
-                                    system().cFieldsRGrid());
+                                    system().cFieldsRGrid(),system().c2FieldsRGrid());
       now = Timer::now();
       solverTimer.stop(now);
 
@@ -228,8 +228,8 @@ namespace Pspc
 
             // Solve MDE
             solverTimer.start(now);
-            system().mixture().compute(system().wFieldsRGrid(),
-                                       system().cFieldsRGrid());
+            system().mixture().compute(system().wFieldsRGrid(), system().cFieldsRGrid(),
+                                         system().c2FieldsRGrid());       
             now = Timer::now();
             solverTimer.stop(now);
 

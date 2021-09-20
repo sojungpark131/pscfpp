@@ -214,14 +214,16 @@ namespace Pspc
       * The array capacity is equal to the number of monomer types.
       */
       DArray<CField>& cFieldsRGrid();
-
+      
+      DArray<CField>& c2FieldsRGrid();
       /**
       * Get concentration field for one monomer type on r-space grid.
       *
       * \param monomerId integer monomer type index
       */
       CField& cFieldRGrid(int monomerId);
-
+      
+      CField& c2FieldRGrid(int monomerId);
       /**
       * Get array of all concentration fields in k-space.
       *
@@ -425,7 +427,8 @@ namespace Pspc
       * Indexed by monomer typeId, size = nMonomer.
       */
       DArray<CField> cFieldsRGrid_;
-
+      
+      DArray<CField> c2FieldsRGrid_;
       /**
       * Array of concentration fields on Fourier space grid.
       *
@@ -642,11 +645,20 @@ namespace Pspc
    inline
    DArray< typename System<D>::CField >& System<D>::cFieldsRGrid()
    {  return cFieldsRGrid_; }
-
+   
+   template <int D>
+   inline
+   DArray< typename System<D>::CField >& System<D>::c2FieldsRGrid()
+   {  return c2FieldsRGrid_; }
+   
    // Get a single monomer concentration field on an r-space grid.
    template <int D>
    inline typename System<D>::CField& System<D>::cFieldRGrid(int id)
    {  return cFieldsRGrid_[id]; }
+   
+   template <int D>
+   inline typename System<D>::CField& System<D>::c2FieldRGrid(int id)
+   {  return c2FieldsRGrid_[id]; }
 
    // Have the w fields been set?
    template <int D>

@@ -124,7 +124,8 @@ namespace Pspc {
       * \param prefactor constant multiplying integral
       */ 
       void computeConcentration(double prefactor);
-
+      
+      void computeFirstsegmentConcentration(double prefactor);
       /** 
       * Compute stress contribution for this block.
       *
@@ -162,6 +163,8 @@ namespace Pspc {
       using BlockTmpl< Propagator<D> >::setKuhn;
       using BlockTmpl< Propagator<D> >::propagator;
       using BlockTmpl< Propagator<D> >::cField;
+
+      using BlockTmpl< Propagator<D> >::c2Field;
       using BlockTmpl< Propagator<D> >::length;
       using BlockTmpl< Propagator<D> >::kuhn;
 

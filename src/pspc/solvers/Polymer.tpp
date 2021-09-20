@@ -66,6 +66,14 @@ namespace Pspc {
 
       // Call base class PolymerTmpl solver() function
       solve();
+
+      double q = block(0).propagator(0).computeQ();
+      double prefactor = phi_ / (q *length() );
+      
+      block(blockId(0)).computeFirstsegmentConcentration(prefactor*length());
+      block(blockId(1)).computeFirstsegmentConcentration(prefactor*length());
+      block(blockId(2)).computeFirstsegmentConcentration(prefactor*length());
+      block(blockId(3)).computeFirstsegmentConcentration(prefactor*length());    
    }
 
    /*

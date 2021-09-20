@@ -78,7 +78,8 @@ namespace Pspc
    */
    template <int D>
    void Mixture<D>::compute(DArray<Mixture<D>::WField> const & wFields,
-                            DArray<Mixture<D>::CField>& cFields)
+                            DArray<Mixture<D>::CField>& cFields,
+                            DArray<Mixture<D>::CField>& c2Fields)
    {
       UTIL_CHECK(meshPtr_);
       UTIL_CHECK(mesh().size() > 0);
@@ -100,6 +101,14 @@ namespace Pspc
          }
       }
 
+    
+      for (i = 0; i < 4; ++i) {
+         UTIL_CHECK(c2Fields[i].capacity() == nx);
+         for (j = 0; j < nx; ++j) {
+            c2Fields[i][j] = 0.0;
+         }
+      }
+      
       // Solve MDE for all polymers
       for (i = 0; i < nPolymer(); ++i) {
          polymer(i).compute(wFields);
@@ -121,6 +130,48 @@ namespace Pspc
          }
       }
 
+      //below is for positional probability distribution for each segment 
+      
+   //   for (i = 0; i < nPolymer(); ++i) {
+   //      phi = polymer(i).phi();
+           
+    //  }
+      
+
+      // Accumulate monomer concentration fields for particular blocks
+      for (i = 0; i < nPolymer(); ++i) {
+         phi = polymer(i).phi();
+         if (polymer(i).nBackboneBlock() !=0){ 
+	         for (j = 0; j < polymer(i).nBackboneBlock(); ++j) {
+	            int monomerId = polymer(i).block(j).monomerId();
+	            UTIL_CHECK(monomerId >= 0);
+	            UTIL_CHECK(monomerId < nm);
+	            CField& monomerField2 = c2Fields[monomerId];
+	            CField& blockField2 = polymer(i).block(j).cField();
+	            for (k = 0; k < nx; ++k) {
+	               monomerField2[k] += phi * blockField2[k];
+	            }
+	         }
+	         for (j = polymer(i).nBackboneBlock(); j < polymer(i).nBlock(); ++j) {
+	            int monomerId = polymer(i).block(j).monomerId();
+	            UTIL_CHECK(monomerId >= 0);
+	            UTIL_CHECK(monomerId < nm);
+	            CField& monomerField2 = c2Fields[monomerId+nm];
+	            CField& blockField2 = polymer(i).block(j).cField();
+	            for (k = 0; k < nx; ++k) {
+	               monomerField2[k] += phi * blockField2[k];
+	            }
+	         }
+	     }else{
+	         for (k = 0; k < nx; ++k) {
+	            c2Fields[0][k] += phi * polymer(i).block(polymer(i).blockId(0)).c2Field()[k];
+	            c2Fields[1][k] += phi * polymer(i).block(polymer(i).blockId(1)).c2Field()[k];
+	            c2Fields[2][k] += phi * polymer(i).block(polymer(i).blockId(2)).c2Field()[k];
+	            c2Fields[3][k] += phi * polymer(i).block(polymer(i).blockId(3)).c2Field()[k];
+	         }       
+		 }
+      }       
+      
       // To do: Add compute functions and accumulation for solvents.
    }
 

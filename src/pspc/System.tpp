@@ -261,6 +261,7 @@ namespace Pspc
 
       cFields_.allocate(nMonomer);
       cFieldsRGrid_.allocate(nMonomer);
+      c2FieldsRGrid_.allocate(nMonomer*2);
       cFieldsKGrid_.allocate(nMonomer);
       
       for (int i = 0; i < nMonomer; ++i) {
@@ -272,6 +273,11 @@ namespace Pspc
          cFieldRGrid(i).allocate(mesh().dimensions());
          cFieldKGrid(i).allocate(mesh().dimensions());
       }
+      
+      for (int i = 0; i < nMonomer*2; ++i) {
+         c2FieldRGrid(i).allocate(mesh().dimensions());
+      }            
+      
       isAllocated_ = true;
    }
 
@@ -353,7 +359,7 @@ namespace Pspc
             }
 
             // Solve the modified diffusion equation (without iteration)
-            mixture().compute(wFieldsRGrid(), cFieldsRGrid());
+            mixture().compute(wFieldsRGrid(), cFieldsRGrid(), c2FieldsRGrid());
 
             // Convert c fields from r-grid to basis
             fieldIo().convertRGridToBasis(cFieldsRGrid(), cFields());
@@ -383,6 +389,7 @@ namespace Pspc
             in >> filename;
             Log::file() << "  " << Str(filename, 20) << std::endl;
             fieldIo().writeFieldsRGrid(filename, cFieldsRGrid());
+            fieldIo().writeFieldsRGrid("rho_segment", c2FieldsRGrid());
          } else
          if (command == "BASIS_TO_RGRID") {
 

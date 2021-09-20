@@ -103,7 +103,7 @@ namespace Pspc {
       propagator(0).allocate(ns_, mesh);
       propagator(1).allocate(ns_, mesh);
       cField().allocate(mesh.dimensions());
-
+      c2Field().allocate(mesh.dimensions());
    }
 
    /*
@@ -234,6 +234,40 @@ namespace Pspc {
       prefactor *= ds_ / 3.0;
       for (i = 0; i < nx; ++i) {
          cField()[i] *= prefactor;
+      }
+
+   }
+   /* 
+   * Integrate to calculate Head segment concentration for this block
+   */
+   template <int D>
+   void Block<D>::computeFirstsegmentConcentration(double prefactor)
+   {
+      // Preconditions
+      int nx = mesh().size();
+      UTIL_CHECK(nx > 0);
+      UTIL_CHECK(ns_ > 0);
+      UTIL_CHECK(ds_ > 0);
+      UTIL_CHECK(propagator(0).isAllocated());
+      UTIL_CHECK(propagator(1).isAllocated());
+      UTIL_CHECK(c2Field().capacity() == nx) 
+
+      // Initialize cField to zero at all points
+      int i;
+      for (i = 0; i < nx; ++i) {
+         c2Field()[i] = 0.0;
+      }
+
+      Propagator<D> const & p0 = propagator(0);
+      Propagator<D> const & p1 = propagator(1);
+
+      // Evaluate unnormalized integral
+      for(i = 0; i < nx; ++i) {
+         c2Field()[i] += p0.q(0)[i]*p1.q(ns_ - 1)[i];
+      }
+
+      for (i = 0; i < nx; ++i) {
+         c2Field()[i] *= prefactor;
       }
 
    }

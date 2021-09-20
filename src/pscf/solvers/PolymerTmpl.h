@@ -141,6 +141,16 @@ namespace Pscf
       //@{
 
       /**
+      * block ID for the first segment concentration calculation 
+      */
+      int blockId(int i) const;
+
+      /**
+      * Number of backbone blocks.
+      */
+      int nBackboneBlock() const; 
+      
+      /**
       * Number of blocks.
       */
       int nBlock() const; 
@@ -177,6 +187,12 @@ namespace Pscf
       /// Propagator ids, indexed in order of computation.
       DArray< Pair<int> > propagatorIds_;
 
+      /// block ID for the first segment concentration calculation 
+      DArray<int> blockId_;
+      
+      /// Number of backbone blocks in this polymer
+      int nBackboneBlock_;
+
       /// Number of blocks in this polymer
       int nBlock_;
 
@@ -195,6 +211,21 @@ namespace Pscf
    inline int PolymerTmpl<Block>::nVertex() const
    {  return nVertex_; }
 
+   /*
+   * block ID for the first segment concentration calculation 
+   */
+   template <class Block>
+   inline int PolymerTmpl<Block>::blockId(int id) const
+   {  return blockId_[id];}
+
+
+   /*
+   * Number of backbone blocks.
+   */
+   template <class Block>
+   inline int PolymerTmpl<Block>::nBackboneBlock() const
+   {  return nBackboneBlock_; }
+   
    /*
    * Number of blocks.
    */
@@ -296,6 +327,8 @@ namespace Pscf
       blocks_(),
       vertices_(),
       propagatorIds_(),
+      blockId_(),
+      nBackboneBlock_(0),
       nBlock_(0),
       nVertex_(0),
       nPropagator_(0)
@@ -311,6 +344,9 @@ namespace Pscf
    template <class Block>
    void PolymerTmpl<Block>::readParameters(std::istream& in)
    {
+	  blockId_.allocate(4);
+	  readDArray<int>(in, "blockId", blockId_, 4);
+      read<int>(in, "nBackboneBlock", nBackboneBlock_);
       read<int>(in, "nBlock", nBlock_);
       read<int>(in, "nVertex", nVertex_);
 

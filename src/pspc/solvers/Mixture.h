@@ -127,7 +127,7 @@ namespace Pspc
       * \param cFields array of monomer concentration fields (output)
       */
       void 
-      compute(DArray<WField> const & wFields, DArray<CField>& cFields);
+      compute(DArray<WField> const & wFields, DArray<CField>& cFields, DArray<CField>& c2Fields);
       
       /**
       * Compute derivatives of free energy w/ respect to cell parameters.
